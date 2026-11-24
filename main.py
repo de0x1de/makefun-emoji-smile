@@ -27,6 +27,13 @@ def validate(text: str) -> None:
         raise ValueError("entry text does not match the intended emoji")
     if len(text) != 1:
         raise ValueError("entry must be exactly one character")
+    # Verify the code point itself, not just string equality: a single
+    # character must be exactly U+1F979 and encode to the known 4-byte
+    # UTF-8 sequence, so a look-alike or normalised variant cannot pass.
+    if ord(text) != EMOJI_CODEPOINT:
+        raise ValueError("entry code point is not U+1F979")
+    if text.encode("utf-8") != b"\xf0\x9f\xa5\xb9":
+        raise ValueError("entry UTF-8 bytes are not the expected 4 bytes")
     if text.strip() != text or any(ch.isspace() for ch in text):
         raise ValueError("entry must not contain whitespace")
     if "\n" in text or "\r" in text:
@@ -35,6 +42,15 @@ def validate(text: str) -> None:
         raise ValueError("entry is outside the gate's 1-8 character range")
     if text.encode("utf-8").decode("utf-8") != text:
         raise ValueError("entry does not survive a UTF-8 round trip")
+    # Grapheme check: one code point with no combining marks, zero-width
+    # joiner, or variation selector is exactly one grapheme cluster, so
+    # the entry cannot render as (or be counted as) more than one emoji.
+    import unicodedata
+
+    if unicodedata.combining(text):
+        raise ValueError("entry must not carry a combining mark")
+    if any(ord(ch) in (0x200D, 0xFE0E, 0xFE0F) for ch in text):
+        raise ValueError("entry must not contain a joiner or variation selector")
 
 
 def main() -> None:
